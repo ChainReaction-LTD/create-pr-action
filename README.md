@@ -13,7 +13,6 @@ enable-auto-merge (optional): A boolean flag to indicate whether auto-merge shou
 ## Usage
 ```yaml
 ---
-Copy code
 - name: Create Pull Request
   uses: ChainReaction-LTD/create-pr-action@v1
   with:
