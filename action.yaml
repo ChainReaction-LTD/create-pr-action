@@ -1,0 +1,45 @@
+---
+name: create-pr-action
+author: Yakir Magriso
+description: Create a new GitHub Pull Request
+inputs:
+  personal-access-token:
+    description: Personal access token
+    required: true
+  base-branch:
+    description: Base branch
+    required: true
+  head-branch:
+    description: Head branch
+    required: true
+  pr-title:
+    description: Pull request title
+    required: true
+  enable-auto-merge:
+    description: "Enable/disable auto-merge (default: true)"
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - name: Create a GitHub Pull Request
+      shell: bash
+      run: |
+        echo "Creating a new Pull Request ..."
+        REPOSITORY_NAME=$(echo "${{ github.repository }}" | cut -d"/" -f2)
+        echo "{\"query\": \"query {repository(owner: \\\"${{ github.repository_owner }}\\\", name: \\\"${REPOSITORY_NAME}\\\") { id } }\"}" > query.json
+        JSON_RESPONSE=$(curl -s -X POST -H "Authorization: Bearer ${{ inputs.personal-access-token }}" --data-binary "@query.json" ${{ github.graphql_url }})
+        echo "JSON_RESPONSE=${JSON_RESPONSE}"
+        REPOSITORY_ID=$(echo "${JSON_RESPONSE}" | jq -r '.data.repository.id')
+        echo "REPOSITORY_ID=${REPOSITORY_ID}"
+        echo "{\"query\": \"mutation { createPullRequest(input: { baseRefName: \\\"${{ inputs.base-branch }}\\\", headRefName: \\\"${{ inputs.head-branch }}\\\", repositoryId: \\\"${REPOSITORY_ID}\\\", title: \\\"${{ inputs.pr-title }}\\\" }) { pullRequest { id } } }\" }" > query.json
+        JSON_RESPONSE=$(curl -s -X POST -H "Authorization: Bearer ${{ inputs.personal-access-token }}" --data-binary "@query.json" ${{ github.graphql_url }})
+        echo "JSON_RESPONSE=${JSON_RESPONSE}"
+        if [[ "${{ inputs.enable-auto-merge }}" == "true" ]]; then
+          PULL_REQUEST_ID=$(echo "${JSON_RESPONSE}" | jq -r '.data.createPullRequest.pullRequest.id')
+          echo "PULL_REQUEST_ID=${PULL_REQUEST_ID}"
+          echo "{\"query\": \"mutation { enablePullRequestAutoMerge(input: { mergeMethod: SQUASH, pullRequestId: \\\"${PULL_REQUEST_ID}\\\" }) { pullRequest { id } } }\"}" > query.json
+          curl -s -X POST -H "Authorization: Bearer ${{ inputs.personal-access-token }}" --data-binary "@query.json" ${{ github.graphql_url }}
+        fi
+        rm -f query.json
