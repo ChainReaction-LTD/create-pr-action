@@ -40,7 +40,9 @@ runs:
         echo "JSON_RESPONSE=${JSON_RESPONSE}"
         REPOSITORY_ID=$(echo "${JSON_RESPONSE}" | jq -r '.data.repository.id')
         echo "REPOSITORY_ID=${REPOSITORY_ID}"
-        echo "{\"query\": \"mutation { createPullRequest(input: { baseRefName: \\\"${{ inputs.base-branch }}\\\", headRefName: \\\"${{ inputs.head-branch }}\\\", repositoryId: \\\"${REPOSITORY_ID}\\\", title: \\\"${{ inputs.pr-title }}\\\", body: \\\"${{ inputs.pr-body }}\\\" }) { pullRequest { id } } }\" }" > query.json
+        PR_BODY=$(echo "${{ inputs.pr-body }}" | sed ':a;N;$!ba;s/\n/\\n/g')
+        echo "PR_BODY=${PR_BODY}"
+        echo "{\"query\": \"mutation { createPullRequest(input: { baseRefName: \\\"${{ inputs.base-branch }}\\\", headRefName: \\\"${{ inputs.head-branch }}\\\", repositoryId: \\\"${REPOSITORY_ID}\\\", title: \\\"${{ inputs.pr-title }}\\\", body: \\\"${PR_BODY}\\\" }) { pullRequest { id } } }\" }" > query.json
         JSON_RESPONSE=$(curl -s -X POST -H "Authorization: Bearer ${{ inputs.personal-access-token }}" --data-binary "@query.json" ${{ github.graphql_url }})
         echo "JSON_RESPONSE=${JSON_RESPONSE}"
         if [[ "${{ inputs.enable-auto-merge }}" == "true" ]]; then
