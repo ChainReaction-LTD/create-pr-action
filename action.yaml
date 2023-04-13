@@ -15,10 +15,17 @@ inputs:
   pr-title:
     description: Pull request title
     required: true
+  pr-body:
+    description: Pull request body
+    required: false
   enable-auto-merge:
     description: "Enable/disable auto-merge (default: true)"
     required: false
     default: 'true'
+  merge-method:
+    description: "Merge method when auto-merge is enabled - MERGE / REBASE / SQUASH (default: SQUASH)"
+    required: false
+    default: 'SQUASH'
 
 runs:
   using: composite
@@ -33,13 +40,15 @@ runs:
         echo "JSON_RESPONSE=${JSON_RESPONSE}"
         REPOSITORY_ID=$(echo "${JSON_RESPONSE}" | jq -r '.data.repository.id')
         echo "REPOSITORY_ID=${REPOSITORY_ID}"
-        echo "{\"query\": \"mutation { createPullRequest(input: { baseRefName: \\\"${{ inputs.base-branch }}\\\", headRefName: \\\"${{ inputs.head-branch }}\\\", repositoryId: \\\"${REPOSITORY_ID}\\\", title: \\\"${{ inputs.pr-title }}\\\" }) { pullRequest { id } } }\" }" > query.json
+        PR_BODY=$(echo "${{ inputs.pr-body }}" | sed ':a;N;$!ba;s/\n/\\n/g')
+        echo "PR_BODY=${PR_BODY}"
+        echo "{\"query\": \"mutation { createPullRequest(input: { baseRefName: \\\"${{ inputs.base-branch }}\\\", headRefName: \\\"${{ inputs.head-branch }}\\\", repositoryId: \\\"${REPOSITORY_ID}\\\", title: \\\"${{ inputs.pr-title }}\\\", body: \\\"${PR_BODY}\\\" }) { pullRequest { id } } }\" }" > query.json
         JSON_RESPONSE=$(curl -s -X POST -H "Authorization: Bearer ${{ inputs.personal-access-token }}" --data-binary "@query.json" ${{ github.graphql_url }})
         echo "JSON_RESPONSE=${JSON_RESPONSE}"
         if [[ "${{ inputs.enable-auto-merge }}" == "true" ]]; then
           PULL_REQUEST_ID=$(echo "${JSON_RESPONSE}" | jq -r '.data.createPullRequest.pullRequest.id')
           echo "PULL_REQUEST_ID=${PULL_REQUEST_ID}"
-          echo "{\"query\": \"mutation { enablePullRequestAutoMerge(input: { mergeMethod: SQUASH, pullRequestId: \\\"${PULL_REQUEST_ID}\\\" }) { pullRequest { id } } }\"}" > query.json
+          echo "{\"query\": \"mutation { enablePullRequestAutoMerge(input: { mergeMethod: ${{ inputs.merge-method }}, pullRequestId: \\\"${PULL_REQUEST_ID}\\\" }) { pullRequest { id } } }\"}" > query.json
           curl -s -X POST -H "Authorization: Bearer ${{ inputs.personal-access-token }}" --data-binary "@query.json" ${{ github.graphql_url }}
         fi
         rm -f query.json
